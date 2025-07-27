@@ -1,0 +1,7 @@
+{
+  "name": "Test Team",
+  "description": "Testing",
+  "team_leader_id": 1,
+  "member_ids": [],
+  "project_ids": [1,2]
+}
