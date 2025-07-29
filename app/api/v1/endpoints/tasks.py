@@ -188,14 +188,17 @@ def create_task(
             detail="You don't have permission to create tasks in this project"
         )
     
+    task_data = task.dict()
+    # اگر parent_task_id برابر 0 بود، مقدار None قرار بده
+    if 'parent_task_id' in task_data and task_data['parent_task_id'] == 0:
+        task_data['parent_task_id'] = None
     db_task = Task(
-        **task.dict(),
+        **task_data,
         created_by_id=current_user.id
     )
     db.add(db_task)
     db.commit()
     db.refresh(db_task)
-    
     # Reload with relationships if expand is requested
     if expand:
         db_task = db.query(Task).options(
@@ -245,6 +248,9 @@ def update_task(
         )
     
     update_data = task_update.dict(exclude_unset=True)
+    # اگر parent_task_id برابر 0 بود، مقدار None قرار بده
+    if 'parent_task_id' in update_data and update_data['parent_task_id'] == 0:
+        update_data['parent_task_id'] = None
     for field, value in update_data.items():
         setattr(task, field, value)
     

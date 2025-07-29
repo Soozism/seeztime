@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+*.venv
+venv/
+env/
+ENV/
+.env
+.env.*
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# VS Code
+.vscode/
+
+# Database
+*.db
+*.sqlite3
+
+# Migrations
+migrations/versions/
+
+# Docker
+*.log
+docker-compose.override.yml
+
+# Test & Coverage
+.coverage
+htmlcov/
+*.cover
+*.py,cover
+.cache
+nosetests.xml
+coverage.xml
+*.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Token & Secrets
+token.txt
+
+# Misc
+*.bak
+*.swp
+*.swo
+
+# Ignore data folder
+/data/
