@@ -60,6 +60,7 @@ class TaskResponse(TaskBase):
     sprint_name: Optional[str] = None
     time_logs: Optional[List[Dict[str, Any]]] = None
     active_timer: Optional[Dict[str, Any]] = None
+    subtasks: Optional[List["TaskResponse"]] = None  # List of subtasks
 
     class Config:
         from_attributes = True

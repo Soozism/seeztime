@@ -63,6 +63,7 @@ def get_tasks(
     project_id: int = None,
     assignee_id: int = None,
     expand: bool = True,
+    only_main_tasks: bool = True,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -84,7 +85,9 @@ def get_tasks(
         query = query.filter(Task.project_id == project_id)
     if assignee_id:
         query = query.filter(Task.assignee_id == assignee_id)
-    
+    if only_main_tasks:
+        query = query.filter((Task.is_subtask == False) | (Task.parent_task_id == None))
+    print(only_main_tasks)
     tasks = query.offset(skip).limit(limit).all()
     
     # Convert to response objects with expansions if requested
@@ -163,6 +166,12 @@ def get_task(
                 "elapsed_seconds": elapsed_seconds,
                 "elapsed_hours": round(elapsed_seconds / 3600, 2)
             }
+    # Add subtasks to response
+    subtasks = db.query(Task).filter(Task.parent_task_id == task_id, Task.is_subtask.is_(True)).all()
+    if expand:
+        response_data["subtasks"] = [TaskResponse.from_orm_with_expansions(subtask).__dict__ for subtask in subtasks]
+    else:
+        response_data["subtasks"] = [TaskResponse.from_orm(subtask).__dict__ for subtask in subtasks]
     
     return TaskResponse(**response_data)
 
@@ -285,9 +294,13 @@ def delete_task(
             detail="You don't have permission to delete this task"
         )
     
+    # حذف همه ساب‌تسک‌های این تسک
+    subtasks = db.query(Task).filter(Task.parent_task_id == task_id).all()
+    for subtask in subtasks:
+        db.delete(subtask)
     db.delete(task)
     db.commit()
-    return {"message": "Task deleted successfully"}
+    return {"message": "Task and its subtasks deleted successfully"}
 
 @router.patch("/{task_id}/status")
 def update_task_status(
@@ -315,6 +328,10 @@ def update_task_status(
         )
     
     task.status = status_update.status
+    # تغییر وضعیت همه ساب‌تسک‌های این تسک
+    subtasks = db.query(Task).filter(Task.parent_task_id == task_id).all()
+    for subtask in subtasks:
+        subtask.status = status_update.status
     db.commit()
     db.refresh(task)
     return task

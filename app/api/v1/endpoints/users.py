@@ -23,7 +23,7 @@ def get_users(
 ):
     """Get all users (Admin only)"""
     # Only admins can view all users
-    if current_user.role != UserRole.ADMIN:
+    if current_user.role not in [UserRole.ADMIN, UserRole.PROJECT_MANAGER]:
         raise HTTPException(status_code=403, detail="Not enough permissions")
     
     users = db.query(User).offset(skip).limit(limit).all()
@@ -37,7 +37,7 @@ def create_user(
 ):
     """Create a new user (Admin only)"""
     # Only admins can create users
-    if current_user.role != UserRole.ADMIN:
+    if current_user.role not in [UserRole.ADMIN, UserRole.PROJECT_MANAGER]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to create users"
@@ -107,7 +107,7 @@ def update_user(
         raise HTTPException(status_code=404, detail="User not found")
     
     # Only allow users to update themselves or admins to update anyone
-    if current_user.id != user_id and current_user.role != UserRole.ADMIN:
+    if current_user.id != user_id and current_user.role not in [UserRole.ADMIN, UserRole.PROJECT_MANAGER]:
         raise HTTPException(status_code=403, detail="Not enough permissions")
     
     update_data = user_update.dict(exclude_unset=True)
@@ -126,7 +126,7 @@ def delete_user(
 ):
     """Delete user"""
     # Only admins can delete users
-    if current_user.role != UserRole.ADMIN:
+    if current_user.role not in [UserRole.ADMIN, UserRole.PROJECT_MANAGER]:
         raise HTTPException(status_code=403, detail="Not enough permissions")
     
     user = db.query(User).filter(User.id == user_id).first()
