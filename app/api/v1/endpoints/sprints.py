@@ -14,8 +14,8 @@ from app.models.sprint import Sprint
 from app.models.project import Project
 from app.models.team import Team
 from app.models.task import Task
-from app.models.enums import UserRole
-from app.schemas.sprint import SprintCreate, SprintUpdate, SprintResponse
+from app.models.enums import UserRole, SprintStatus
+from app.schemas.sprint import SprintCreate, SprintUpdate, SprintResponse, SprintStatusUpdate
 from app.schemas.task import TaskResponse
 
 router = APIRouter()
@@ -48,32 +48,27 @@ def get_sprints(
 ):
     """Get all sprints with optional project filter"""
     query = db.query(Sprint)
-    
     if project_id:
         query = query.filter(Sprint.project_id == project_id)
-    
     # Role-based filtering
     if current_user.role not in [UserRole.ADMIN, UserRole.PROJECT_MANAGER]:
         # Get teams the user is in
         if current_user.role == UserRole.TEAM_LEADER:
             # Team leaders see sprints from their teams' projects
-            team_projects = db.query(Project).join(Team.projects).filter(
-                Team.team_leader_id == current_user.id
-            ).all()
+            team_ids = [team.id for team in current_user.led_teams]
+            team_projects = db.query(Project).join(Project.teams).filter(Team.id.in_(team_ids)).all()
         else:
-            # Regular users see sprints from their teams' projects
-            team_projects = db.query(Project).join(Team.projects).join(Team.members).filter(
-                User.id == current_user.id
-            ).all()
-        
+            # Developers/testers see sprints from their teams' projects
+            team_ids = [team.id for team in current_user.teams]
+            team_projects = db.query(Project).join(Project.teams).filter(Team.id.in_(team_ids)).all()
         project_ids = [p.id for p in team_projects]
         if project_ids:
             query = query.filter(Sprint.project_id.in_(project_ids))
         else:
             return []  # No access to any projects
-    
     sprints = query.offset(skip).limit(limit).all()
-    return sprints
+    # Return expanded response with assigned teams
+    return [SprintResponse.from_orm_with_expansions(sprint, include_names=True) for sprint in sprints]
 
 @router.get("/{sprint_id}", response_model=SprintResponse)
 def get_sprint(
@@ -395,36 +390,55 @@ def remove_task_from_sprint(
     db.refresh(task)
     return {"message": f"Task {task_id} removed from sprint {sprint_id}"}
 
-@router.patch("/{sprint_id}/start")
-def start_sprint(
+
+@router.patch("/{sprint_id}/status", response_model=SprintResponse)
+def change_sprint_status(
     sprint_id: int,
+    update: SprintStatusUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Start a sprint (change status from PLANNED to ACTIVE)"""
+    """Change the status of a sprint (planned, active, completed, cancelled)"""
     sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first()
     if not sprint:
         raise HTTPException(status_code=404, detail="Sprint not found")
-    
+
     # Check permissions
     project = db.query(Project).filter(Project.id == sprint.project_id).first()
     if not can_manage_sprints_in_project(current_user, project, db):
         raise HTTPException(
             status_code=403,
-            detail="You don't have permission to start sprints in this project"
+            detail="You don't have permission to change sprint status in this project"
         )
-    
-    from app.models.enums import SprintStatus
-    if sprint.status != SprintStatus.PLANNED:
+
+    # Validate status
+    new_status = update.status
+    if new_status is None:
+        raise HTTPException(status_code=400, detail="Status is required")
+    if new_status not in SprintStatus:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {new_status}")
+
+    # Business rules
+    if sprint.status == new_status:
+        raise HTTPException(status_code=400, detail=f"Sprint is already {new_status.value}")
+
+    # Only allow certain transitions
+    allowed_transitions = {
+        SprintStatus.PLANNED: [SprintStatus.ACTIVE, SprintStatus.CANCELLED],
+        SprintStatus.ACTIVE: [SprintStatus.COMPLETED, SprintStatus.CANCELLED],
+        SprintStatus.COMPLETED: [],
+        SprintStatus.CANCELLED: [],
+    }
+    if new_status not in allowed_transitions[sprint.status]:
         raise HTTPException(
             status_code=400,
-            detail="Only planned sprints can be started"
+            detail=f"Cannot change status from {sprint.status.value} to {new_status.value}"
         )
-    
-    sprint.status = SprintStatus.ACTIVE
+
+    sprint.status = new_status
     db.commit()
     db.refresh(sprint)
-    return sprint
+    return SprintResponse.from_orm(sprint)
 
 @router.get("/{sprint_id}/statistics")
 def get_sprint_statistics(

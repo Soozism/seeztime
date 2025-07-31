@@ -191,7 +191,32 @@ def create_task(
         raise HTTPException(status_code=404, detail="Project not found")
     
     # Check if user can create tasks in this project
-    if not can_create_tasks_in_project(current_user, project, db):
+    # Developers can only create tasks for themselves
+    if current_user.role == UserRole.DEVELOPER:
+        if task.assignee_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Developers can only create tasks assigned to themselves."
+            )
+    elif current_user.role == UserRole.TEAM_LEADER:
+        # Team leaders can create tasks for users in their team
+        team = db.query(Team).filter(
+            Team.team_leader_id == current_user.id,
+            Team.projects.any(Project.id == project.id)
+        ).first()
+        if not team:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not a team leader for this project."
+            )
+        # Check if assignee is in the team
+        member_ids = [member.id for member in team.members]
+        if task.assignee_id not in member_ids and task.assignee_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Team leaders can only create tasks for users in their team."
+            )
+    elif not can_create_tasks_in_project(current_user, project, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to create tasks in this project"
@@ -244,9 +269,38 @@ def update_task(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    # Check permissions - only admins, project managers, team leaders of the project, or assignees can update tasks
+    # Check permissions
     project = db.query(Project).filter(Project.id == task.project_id).first()
-    if not (
+    if current_user.role == UserRole.DEVELOPER:
+        # Developers can update tasks they created or are assigned to
+        if not (task.created_by_id == current_user.id or task.assignee_id == current_user.id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Developers can only update tasks they created or are assigned to."
+            )
+    elif current_user.role == UserRole.TEAM_LEADER:
+        # Team leaders can update tasks for users in their team
+        team = db.query(Team).filter(
+            Team.team_leader_id == current_user.id,
+            Team.projects.any(Project.id == project.id)
+        ).first()
+        if not team:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not a team leader for this project."
+            )
+        member_ids = [member.id for member in team.members]
+        if not (
+            task.assignee_id in member_ids or
+            task.created_by_id in member_ids or
+            task.assignee_id == current_user.id or
+            task.created_by_id == current_user.id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Team leaders can only update tasks for users in their team."
+            )
+    elif not (
         current_user.role in [UserRole.ADMIN, UserRole.PROJECT_MANAGER] or
         can_create_tasks_in_project(current_user, project, db) or
         task.assignee_id == current_user.id

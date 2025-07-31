@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.auth import get_current_active_user, get_password_hash, verify_password
 from app.models.user import User
+from app.models.team import Team
 from app.models.enums import UserRole
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, PasswordChangeRequest
 
@@ -22,12 +23,25 @@ def get_users(
     current_user: User = Depends(get_current_active_user)
 ):
     """Get all users (Admin only)"""
-    # Only admins can view all users
-    if current_user.role not in [UserRole.ADMIN, UserRole.PROJECT_MANAGER]:
+    # Admins and Project Managers can view all users
+    if current_user.role in [UserRole.ADMIN, UserRole.PROJECT_MANAGER]:
+        users = db.query(User).offset(skip).limit(limit).all()
+        return users
+    # Team Leaders: return users in their team(s)
+    elif current_user.role == UserRole.TEAM_LEADER:
+        # Find teams led by current user
+        teams_led = db.query(Team).filter(Team.team_leader_id == current_user.id).all()
+        team_user_ids = set()
+        for team in teams_led:
+            for member in team.members:
+                team_user_ids.add(member.id)
+        users = db.query(User).filter(User.id.in_(team_user_ids)).offset(skip).limit(limit).all()
+        return users
+    # Developers, Testers, Viewers: only themselves
+    elif current_user.role in [UserRole.DEVELOPER, UserRole.TESTER, UserRole.VIEWER]:
+        return [current_user]
+    else:
         raise HTTPException(status_code=403, detail="Not enough permissions")
-    
-    users = db.query(User).offset(skip).limit(limit).all()
-    return users
 
 @router.post("/", response_model=UserResponse)
 def create_user(

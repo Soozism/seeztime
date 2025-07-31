@@ -28,6 +28,7 @@ class SprintStatus(enum.Enum):
     PLANNED = "planned"
     ACTIVE = "active"
     COMPLETED = "completed"
+    CANCELLED = "cancelled"
 
 class TaskPriority(enum.IntEnum):
     LOW = 1

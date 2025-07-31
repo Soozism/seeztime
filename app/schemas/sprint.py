@@ -19,13 +19,18 @@ class SprintCreate(SprintBase):
     milestone_id: int
     project_id: Optional[int] = None  # Keep for backward compatibility
 
+
+# For general sprint updates (not status changes)
 class SprintUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    status: Optional[SprintStatus] = None
     estimated_hours: Optional[float] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
+
+# For status change endpoint only
+class SprintStatusUpdate(BaseModel):
+    status: SprintStatus
 
 # Simple sprint info for embedding in other responses
 class SprintSimple(BaseModel):
@@ -50,6 +55,7 @@ class SprintResponse(SprintBase):
     milestone_name: Optional[str] = None
     project_name: Optional[str] = None
     task_count: int = 0
+    teams: Optional[list[dict]] = None  # List of assigned teams (id, name)
     
     class Config:
         from_attributes = True
@@ -71,11 +77,12 @@ class SprintResponse(SprintBase):
             "updated_at": sprint.updated_at,
             "task_count": len(sprint.tasks) if hasattr(sprint, 'tasks') else 0,
         }
-        
         if include_names:
             if hasattr(sprint, 'milestone') and sprint.milestone:
                 data["milestone_name"] = sprint.milestone.name
             if hasattr(sprint, 'project') and sprint.project:
                 data["project_name"] = sprint.project.name
-                
+        # Add assigned teams (id, name) for the sprint's project
+        if hasattr(sprint, 'project') and sprint.project and hasattr(sprint.project, 'teams'):
+            data["teams"] = [{"id": t.id, "name": t.name} for t in sprint.project.teams]
         return cls(**data)
