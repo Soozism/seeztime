@@ -14,7 +14,8 @@ from app.models.project import Project
 from app.models.team import Team
 from app.models.time_log import TimeLog
 from app.models.active_timer import ActiveTimer
-from app.models.enums import UserRole
+from app.models.enums import UserRole, SprintStatus
+from app.models.sprint import Sprint
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskStatusUpdate
 
 router = APIRouter()
@@ -64,6 +65,7 @@ def get_tasks(
     assignee_id: int = None,
     expand: bool = True,
     only_main_tasks: bool = True,
+    sprint_done: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -87,7 +89,22 @@ def get_tasks(
         query = query.filter(Task.assignee_id == assignee_id)
     if only_main_tasks:
         query = query.filter((Task.is_subtask == False) | (Task.parent_task_id == None))
-    print(only_main_tasks)
+
+    # Filter based on sprint completion status
+    if sprint_done:
+        # Only tasks whose sprint is completed
+        query = query.filter(Task.sprint_id.isnot(None)).filter(
+            Task.sprint.has(Sprint.status == SprintStatus.COMPLETED)
+        )
+    else:
+        # Exclude tasks whose sprint is completed
+        query = query.filter(
+            (Task.sprint_id.is_(None)) | (Task.sprint.has(Sprint.status != SprintStatus.COMPLETED))
+        )
+
+    # Order by creation date (newest first) and then by priority (higher priority first)
+    query = query.order_by(Task.created_at.desc(), Task.priority.desc())
+
     tasks = query.offset(skip).limit(limit).all()
     
     # Convert to response objects with expansions if requested

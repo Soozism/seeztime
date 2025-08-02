@@ -47,3 +47,16 @@ class BugStatus(enum.Enum):
     IN_PROGRESS = "in_progress"
     RESOLVED = "resolved"
     CLOSED = "closed"
+
+class CalendarType(enum.Enum):
+    """Type/category of holiday date"""
+    NATIONAL = "national"
+    RELIGIOUS = "religious"
+    WEEKLY = "weekly"
+    COMPANY = "company"
+
+class TimeOffStatus(enum.Enum):
+    """Status of a TimeOff request"""
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"

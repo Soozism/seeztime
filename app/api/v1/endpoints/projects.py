@@ -166,6 +166,7 @@ def get_project(
     expand: bool = True,
     include_details: bool = True,
     include_users: bool = True,
+    sprint_done: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -419,10 +420,25 @@ def get_project(
     # Include detailed lists if requested
     if include_details:
         # Get detailed task information
-        tasks = db.query(Task).options(
+        tasks_query = db.query(Task).options(
             joinedload(Task.assignee),
             joinedload(Task.sprint)
-        ).filter(Task.project_id == project_id).all()
+        ).filter(Task.project_id == project_id)
+
+        # Apply sprint completion filter
+        if sprint_done:
+            tasks_query = tasks_query.filter(Task.sprint_id.isnot(None)).filter(
+                Task.sprint.has(Sprint.status == SprintStatus.COMPLETED)
+            )
+        else:
+            tasks_query = tasks_query.filter(
+                (Task.sprint_id.is_(None)) | (Task.sprint.has(Sprint.status != SprintStatus.COMPLETED))
+            )
+
+        # Order newest first then higher priority
+        tasks_query = tasks_query.order_by(Task.created_at.desc(), Task.priority.desc())
+
+        tasks = tasks_query.all()
         
         task_details = []
         for task in tasks:
@@ -616,6 +632,7 @@ def get_project_tasks(
     project_id: int,
     skip: int = 0,
     limit: int = 100,
+    sprint_done: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -624,7 +641,22 @@ def get_project_tasks(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
-    tasks = db.query(Task).filter(Task.project_id == project_id).offset(skip).limit(limit).all()
+    tasks_query = db.query(Task).filter(Task.project_id == project_id)
+
+    # Apply sprint completion filter
+    if sprint_done:
+        tasks_query = tasks_query.filter(Task.sprint_id.isnot(None)).filter(
+            Task.sprint.has(Sprint.status == SprintStatus.COMPLETED)
+        )
+    else:
+        tasks_query = tasks_query.filter(
+            (Task.sprint_id.is_(None)) | (Task.sprint.has(Sprint.status != SprintStatus.COMPLETED))
+        )
+
+    # Order newest first then higher priority
+    tasks_query = tasks_query.order_by(Task.created_at.desc(), Task.priority.desc())
+
+    tasks = tasks_query.offset(skip).limit(limit).all()
     return tasks
 
 @router.get("/{project_id}/sprints")

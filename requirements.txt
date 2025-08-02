@@ -16,3 +16,6 @@ pytest==7.4.3
 pytest-asyncio==0.21.1
 httpx==0.25.2
 werkzeug==3.0.1
+
+jdatetime==4.1.1
+hijri-converter==2.3.2

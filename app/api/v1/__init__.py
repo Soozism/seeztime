@@ -6,7 +6,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth, users, projects, phases, tasks, sprints, backlogs, bug_reports, time_logs, 
     dashboard, milestones, teams, reports, advanced_reports, task_dependencies, 
-    versions, tags, advanced_queries
+    versions, tags, advanced_queries, planner, working_hours, time_off
 )
 
 api_router = APIRouter()
@@ -29,4 +29,12 @@ api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboar
 api_router.include_router(task_dependencies.router, prefix="/dependencies", tags=["task-dependencies"])
 api_router.include_router(versions.router, prefix="/versions", tags=["versions"])
 api_router.include_router(tags.router, prefix="/tags", tags=["tags"])
-api_router.include_router(advanced_queries.router, prefix="/queries", tags=["advanced-queries"])
+
+# Register planner endpoints
+api_router.include_router(planner.router, prefix="/planner", tags=["planner"])
+
+# Register working hours endpoints
+api_router.include_router(working_hours.router, prefix="/working-hours", tags=["working-hours"])
+
+# Register time off endpoints
+api_router.include_router(time_off.router, prefix="/time-off", tags=["time-off"])

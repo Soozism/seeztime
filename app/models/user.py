@@ -34,10 +34,18 @@ class User(Base):
     time_logs = relationship("TimeLog", back_populates="user", lazy="dynamic")
     active_timers = relationship("ActiveTimer", back_populates="user", lazy="dynamic")
     bug_reports = relationship("BugReport", back_populates="reported_by", lazy="dynamic")
-    
+
+    # Personal planner relationships
+    planner_events = relationship("PlannerEvent", back_populates="user", cascade="all, delete-orphan", lazy="dynamic")
+    personal_todos = relationship("PersonalTodo", back_populates="user", cascade="all, delete-orphan", lazy="dynamic")
+
     # Team relationships
     led_teams = relationship("Team", back_populates="team_leader", lazy="dynamic")
     teams = relationship("Team", secondary="team_members", back_populates="members", lazy="dynamic")
+    
+    # Working hours relationships
+    working_hours = relationship("WorkingHours", foreign_keys="WorkingHours.user_id", back_populates="user", lazy="dynamic")
+    time_off_requests = relationship("TimeOff", foreign_keys="TimeOff.user_id", back_populates="user", lazy="dynamic")
 
     def set_password(self, password: str):
         """Set password hash"""
