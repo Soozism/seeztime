@@ -11,7 +11,7 @@ from app.core.auth import get_current_active_user
 from app.models.user import User
 from app.models.task import Task
 from app.models.project import Project
-from app.models.team import Team
+from app.models.team import Team, team_members
 from app.models.time_log import TimeLog
 from app.models.active_timer import ActiveTimer
 from app.models.enums import UserRole, SprintStatus
@@ -71,6 +71,7 @@ def get_tasks(
 ):
     """Get all tasks with optional filters and expanded details"""
     from sqlalchemy.orm import joinedload
+    from app.models.enums import UserRole
     
     if expand:
         # Load with related objects
@@ -82,6 +83,23 @@ def get_tasks(
         )
     else:
         query = db.query(Task)
+    
+    # Role-based filtering
+    if current_user.role not in [UserRole.ADMIN, UserRole.PROJECT_MANAGER]:
+        if current_user.role == UserRole.TEAM_LEADER:
+            # Team leader: get tasks assigned to team members
+            team_member_ids = db.query(User.id).join(
+                team_members, User.id == team_members.c.user_id
+            ).filter(
+                team_members.c.team_id.in_(
+                    db.query(Team.id).filter(Team.team_leader_id == current_user.id)
+                )
+            ).subquery()
+            
+            query = query.filter(Task.assignee_id.in_(team_member_ids))
+        else:
+            # Other roles (developer, tester, viewer): get only own tasks
+            query = query.filter(Task.assignee_id == current_user.id)
     
     if project_id:
         query = query.filter(Task.project_id == project_id)
