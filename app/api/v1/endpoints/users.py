@@ -27,11 +27,13 @@ def get_users(
     if current_user.role in [UserRole.ADMIN, UserRole.PROJECT_MANAGER]:
         users = db.query(User).offset(skip).limit(limit).all()
         return users
-    # Team Leaders: return users in their team(s)
+    # Team Leaders: return users in their team(s) + themselves
     elif current_user.role == UserRole.TEAM_LEADER:
         # Find teams led by current user
         teams_led = db.query(Team).filter(Team.team_leader_id == current_user.id).all()
         team_user_ids = set()
+        # Add the team leader themselves
+        team_user_ids.add(current_user.id)
         for team in teams_led:
             for member in team.members:
                 team_user_ids.add(member.id)
